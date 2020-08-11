@@ -1,0 +1,281 @@
+import React from 'react';
+import axios from 'axios';
+import { Load, DeleteItem, Thead, Confirm } from './partials/PopUps.js';
+function ItemsProduct(props){
+	function number_format(amount, decimals) {
+	    amount += ''; // por si pasan un numero en vez de un string
+	    amount = parseFloat(amount.replace(/[^0-9.]/g, '')); // elimino cualquier cosa que no sea numero o punto
+	    decimals = decimals || 0; // por si la variable no fue fue pasada
+	    // si no es un numero o es igual a cero retorno el mismo cero
+	    if (isNaN(amount) || amount === 0){
+	        return parseFloat(0).toFixed(decimals);
+	    }
+	    // si es mayor o menor que cero retorno el valor formateado como numero
+	    amount = '' + amount.toFixed(decimals);
+	    var amount_parts = amount.split('.'),
+	        regexp = /(\d+)(\d{3})/;
+
+	    while (regexp.test(amount_parts[0])){
+	        amount_parts[0] = amount_parts[0].replace(regexp, '$1 , $2');
+	    }
+	    return '$'+amount_parts.join('.');
+   	}
+	return (
+		<tr key={props.index}>
+			<td className="codigo">{props.producto.codigo}</td>
+			<td className="producto">{props.producto.nombre}</td>
+			<td className="precio">{number_format(props.producto.precio,2)}</td>
+			<td className="existencia">{props.producto.existencia}</td>
+			<td className="tipo">{props.producto.proveedor.nombre}</td>
+			<td className="operaciones">
+				<span className="icon-edit" onClick={()=>props.openmodal(props.producto.id)}></span>
+				<span className="icon-trash" onClick={()=>props.onRemoveItem(props.producto.id)}></span>
+			</td>
+		</tr>
+	)
+}
+function ExistenciaSucursal(props){
+	console.log(':D');
+	let list=[];
+	props.sucursales.forEach((item,index)=>
+		list.push(
+			<div className="xs-12 sm-4 md-4 lg-4" key={index}>
+				{item.nombre}
+				<input type="text" onChange={e=>props.inputHandler(e, item.id)} name="existencia" value={item.existencia}/>
+			</div>
+		)
+	);
+	return(
+		<div className="xs-12 sm-12 md-12 lg-12">{list}</div>
+	);
+}
+class Productos extends React.Component{
+	constructor(props){
+		super(props);
+		this.state = { 
+			openModal : false,
+			display : {
+				delete : false,
+				load : false,
+				confirm : false,
+			},
+			columns : ['Código','Articulo','Precio', 'Existencia','Proveedor','Acción'],
+			productos : [],
+			sucursales : [],
+			producto : {}
+		};
+		this.discardChange = this.discardChange.bind(this);
+		this.closeModal = this.closeModal.bind(this);
+		this.deleteItem = this.deleteItem.bind(this);
+		// this.onRemoveItem = this.onRemoveItem.bind(this);
+		this.eventOpenModal = this.eventOpenModal.bind(this);
+		this.inputHandler = this.inputHandler.bind(this);
+		this.closeModalDelete = this.closeModalDelete.bind(this);
+		this.mySubmitHandler = this.mySubmitHandler.bind(this);
+	}
+	componentDidMount(){
+		axios.get('http://localhost:8888/shantal/api/productos')
+		.then(res=>{
+			const productos = res.data.productos;
+			const sucursales = res.data.sucursales;
+			this.setState(e=>{
+				return{
+					productos : productos,
+					sucursales : sucursales
+				}
+			});
+		});
+	}
+	updateProducts(data){
+		// let aux = 0;
+		// let _productos = this.state.productos.map((p)=>{
+		// 	if( p.id === this.state.producto_id ){
+		// 		let sucursales = p.sucursales.map((sucursal)=>{
+		// 			if( sucursal.id === sid ){
+		// 				sucursal.existencia = Number(data.value);
+		// 			}
+		// 			aux += Number(sucursal.existencia);
+		// 			return sucursal;
+		// 		});
+		// 		p.existencia = aux;
+		// 		p.sucursales = sucursales;
+		// 		aux = 0;
+		// 	}
+		// 	return p;
+		// });
+		// return _productos;
+	}
+	inputHandler(e, sid = null){
+		let input = e.target;
+		let producto = this.state.producto;
+		//this.setState(state=>{
+			if( sid ){
+				producto.sucursales.map((e)=>{
+					if( e.id === sid ){
+						producto.existencia = producto.existencia - e.existencia;
+						e.existencia = parseInt(input.value)
+						producto.existencia = parseInt(producto.existencia) + parseInt(e.existencia);
+					}
+					return e;
+				});
+			}else{
+				producto[input.name] = input.value;
+			}
+	}
+	discardChange(){
+		let existencia = 0;
+		let producto = {}
+		this.setState(state=>{
+			return{
+				producto,
+				openModal : !state.openModal,
+				display : { confirm : !state.display.confirm }
+			}
+		});
+	}
+	closeModal(){
+		console.log( this.state.producto );
+		console.log( this.state.productos );
+		if( this.state.producto.id ){
+			this.setState(e=>{
+				return{
+					display : { confirm : !e.display.confirm }
+				}
+			})
+		}else{
+			// this.setState(state=>(this.atributos(false)));
+			this.setState(state=>({
+				openModal : !state.openModal
+			}));
+		}
+	}
+	closeModalDelete(){
+		this.setState(state=>{
+			const display = { delete : !state.display.delete}
+			return{
+				display,
+				nombre:'',
+				producto_id :''
+			}
+		});
+	}
+	deleteItem(){
+		axios.delete('http://localhost:8888/shantal/api/producto/'+this.state.producto_id)
+		.then(response=>{
+			console.log(response.data);
+		});
+	}
+	removeItem(id, action){
+		this.setState(state=>{
+			const display = { delete : !state.display.delete}
+			const producto_id = id;
+			return{
+				display,
+				producto_id
+			}
+		});
+		const producto = this.state.productos.find(item=>item.id===id);
+		this.setState({nombre: producto.nombre});
+	}
+	eventOpenModal(id){
+		// let producto = this.state.productos.find(e=>e.id===id);
+		let producto = {};
+		this.state.productos.forEach(e=>{
+			if( e.id === id ){
+				producto = e;
+				return;
+			}
+		});
+		this.setState((state, props)=>{
+			return{
+				producto : producto,
+				openModal : !state.openModal
+			}
+		});
+	}
+	mySubmitHandler(e){
+		e.preventDefault();
+	}
+	render(){
+	let list = [];
+	this.state.productos.forEach((producto, index)=>{
+		list.push(
+			<ItemsProduct 
+				key={index}
+				producto={producto}
+				openmodal={this.eventOpenModal}
+				onRemoveItem={this.onRemoveItem}
+			/>
+		);
+	});
+
+	return(
+		<div className="wrap-module">
+			<h1>Productos</h1>
+			<div className="wrap-content">
+				<div className="xs-12 sm-10 md-10 lg-10">
+					<div className="content-search">
+						<input type="text" placeholder="Buscar…" />
+						<span className="icon-new"></span>
+					</div>
+				</div>
+				<div className="xs-2 sm-2 md-2 lg-2">
+					<span className="btn-square btn-green icon-new" title="Nueva Sucursal" onClick={this.eventOpenModal}></span>
+				</div>
+				<table>
+					<Thead columns={this.state.columns}/>
+					<tbody>{this.state.productos.length > 0 ? lista : ''}</tbody>
+				</table>
+			</div>
+			<Load display={this.state.display.load}/>
+			<Confirm display={this.state.display.confirm} discard={this.discardChange}/>
+			<DeleteItem 
+				display={this.state.display.delete} 
+				name={this.state.nombre} 
+				closeModalDelete={this.closeModalDelete}
+				deleteItem={this.deleteItem}
+			/>
+			<div className={this.state.openModal ? 'overlay show':'overlay'}>
+				<form onSubmit={this.mySubmitHandler} className="row content">
+					<div className="modal_header">
+						<h5>{ this.state.producto.id > 0 ? 'Editar' : 'Nuevo' }</h5>
+						<span className="close-pop-up" onClick={this.closeModal}>x</span>
+					</div>
+					<div className="modal_body">
+						<label>
+							<input type="text" onChange={this.inputHandler} name="nombre" value={this.state.producto.nombre} placeholder=" "/>
+							<span>Nombre</span>
+						</label>
+						<label>
+							<input type="text" onChange={this.inputHandler} name="precio" value={this.state.producto.precio} placeholder=" "/>
+							<span>Precio</span>
+						</label>
+						<label>
+							<input type="text" onChange={this.inputHandler} name="descripcion" value={this.state.producto.descripcion} placeholder=" "/>
+							<span>Descripcion</span>
+						</label>
+						<hr/><br/>
+						<div>
+							<div className="xs-12 sm-12 md-12 lg-12 text-center">
+								<h3>Existencia en sucursal</h3><br/>
+							</div>
+							{  this.state.producto.hasOwnProperty('id') && 
+								<ExistenciaSucursal 
+									sucursales={this.state.producto.sucursales} 
+									existencia={this.state.producto.existencia}
+									inputHandler={this.inputHandler}
+								/>
+							}
+						</div><br/>
+						<hr/><br/>
+						<div className="text-center">
+							<button type="submit" className="btn btn-green">Guardar</button>
+						</div>
+					</div>
+				</form>
+			</div>
+		</div>
+	)
+}
+}
+export default Productos;
